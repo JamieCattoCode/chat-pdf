@@ -36,7 +36,7 @@ export async function uploadToS3(file: File) {
         });
 
     } catch (error) {
-        
+        console.log(error);
     }
 }
 
