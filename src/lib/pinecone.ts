@@ -1,18 +1,21 @@
-import { PineconeClient } from '@pinecone-database/pinecone';
-import { downloadFromS3 } from './s3-server';
+import { Pinecone, utils as PineconeUtils, PineconeRecord } from '@pinecone-database/pinecone';
 import { PDFLoader } from 'langchain/document_loaders/fs/pdf';
 import { Document, RecursiveCharacterTextSplitter } from '@pinecone-database/doc-splitter';
+import md5 from 'md5';
 
-let pinecone: PineconeClient | null = null;
+import { downloadFromS3 } from './s3-server';
+import { removeWhiteSpace } from '@/utilities';
+import { getEmbeddings } from './embeddings';
+import { convertToAscii } from './utils';
+
+let pinecone: Pinecone | null = null;
 
 export const getPineconeClient = async () => {
     if (!pinecone) {
-        pinecone = new PineconeClient();
-
-        await pinecone.init({
+        pinecone = new Pinecone({
             environment: process.env.PINECONE_ENVIRONMENT!,
             apiKey: process.env.PINECONE_API_KEY!
-        })
+        });
     }
 
     return pinecone;
@@ -42,6 +45,45 @@ export async function loadS3IntoPinecone(fileKey: string) {
     const documents = await Promise.all(pages.map(prepareDocument));
     
     // 3: Vectorise and embed the individual documents
+    const vectors = await Promise.all(documents.flat().map(embedDocument));
+
+    type VectorMetadata = {
+        text: string,
+        pageNumber: number
+    }
+
+    // 4: Upload to pinecone
+    const pinecone = await getPineconeClient();
+    const pineconeIndex = pinecone.index('chat-pdf');
+
+    console.log('Inserting vectors into pinecone...');
+    const namespace = convertToAscii(fileKey);
+
+    // console.log('Vectors: ', vectors);x
+    await pineconeIndex.upsert(vectors);
+
+    // PineconeUtils.chunkedUpsert(pineconeIndex, vectors, namespace, 10);
+    return documents[0];
+}
+
+async function embedDocument(doc: Document) {
+    try {
+        const embeddings = await getEmbeddings(doc.pageContent);
+        
+        const hash = md5(doc.pageContent);
+
+        return {
+            id: hash,
+            values: embeddings,
+            metadata: {
+                text: doc.metadata.text,
+                pageNumber: doc.metadata.pageNumber
+            }
+        } as PineconeRecord;
+    } catch (error) {
+        console.log('Error embedding documents... ', error);
+        throw error;
+    }
 }
 
 export const truncateStringByBytes = (str: string, bytes: number) => {
@@ -57,10 +99,6 @@ async function prepareDocument(page: PDFPage) {
     const docs = await splitDocuments(pageContent, metadata);
 
     return docs;
-}
-
-function removeWhiteSpace(str: string) {
-    return str.replace(/\n/g, '');
 }
 
 async function splitDocuments(pageContent: string, metadata: {loc: { pageNumber: number }}) {
