@@ -20,6 +20,8 @@ export async function uploadToS3(file: File) {
             Bucket: process.env.NEXT_PUBLIC_S3_BUCKET_NAME!,
             Key: fileKey,
             Body: file,
+            ContentType: "application/pdf",
+            ContentDisposition: "inline",
         };
 
         const upload = s3.putObject(params).on('httpUploadProgress', event => {
