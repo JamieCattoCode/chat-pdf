@@ -41,6 +41,6 @@ export async function uploadToS3(file: File) {
 }
 
 export function getS3Url(fileKey: string) {
-    const url = `https://${process.env.NEXT_PUBLIC_S3_BUCKET_NAME}.${process.env.NEXT_PUBLIC_S3_REGION}.amazonaws.com/${fileKey}`;
+    const url = `https://${process.env.NEXT_PUBLIC_S3_BUCKET_NAME}.s3.${process.env.NEXT_PUBLIC_S3_REGION}.amazonaws.com/${fileKey}`;
     return url;
 }

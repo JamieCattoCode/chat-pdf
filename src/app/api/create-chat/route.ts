@@ -26,8 +26,8 @@ export async function POST(req: Request, res: Response) {
             userId
         }).returning({
             insertedId: chats.id
-        })
-        console.log(`File key: ${fileKey}\n File name: ${fileName}`);
+        });
+        
         return NextResponse.json(
             { 
                 chatId: chatId[0].insertedId 
